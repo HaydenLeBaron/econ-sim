@@ -1,10 +1,10 @@
 import { type WorldState, type Square, type Agent, GLOBALS } from './types';
 
-function generateRandomId(): string {
+export function generateRandomId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
 
-export function generateInitialState(width = 15, height = 15, numAgents = 5): WorldState {
+export function generateInitialState(width: number, height: number, numAgents: number): WorldState {
   // 1. Generate grid
   const grid: Square[][] = [];
   for (let y = 0; y < height; y++) {
@@ -20,7 +20,7 @@ export function generateInitialState(width = 15, height = 15, numAgents = 5): Wo
         foodResources = Math.floor(Math.random() * GLOBALS.MAX_FOOD_PER_BLOCK);
       } else if (rand < 0.25) {
         type = 'Gold';
-        goldResources = Math.floor(Math.random() * 5) + 1; // 1-5 gold
+        goldResources = Math.floor(Math.random() * 100) + 1; // 1-100 gold
       }
 
       row.push({ type, foodResources, goldResources });
@@ -39,8 +39,10 @@ export function generateInitialState(width = 15, height = 15, numAgents = 5): Wo
       },
       currHunger: 0,
       baseGreed: Math.random() * 10, // Float between 0 and 10
-      foodInventory: 0,
-      goldInventory: 0
+      foodInventory: 1,
+      goldInventory: 1,
+      bornOnTurn: 0,
+      color: `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`,
     });
   }
 
@@ -48,5 +50,12 @@ export function generateInitialState(width = 15, height = 15, numAgents = 5): Wo
     tick: 0,
     grid,
     agents,
+    market: {
+      bids: [],
+      asks: [],
+      lastClearingPrice: null,
+      volumeLastTick: 0,
+      tradesLastTick: []
+    }
   };
 }
