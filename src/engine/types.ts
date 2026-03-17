@@ -1,17 +1,3 @@
-export type Hunger = 0 | 1 | 2;
-export const Hunger = {
-  None: 0,
-  Lo: 1,
-  Hi: 2,
-} as const;
-
-export type Greed = 0 | 1 | 2;
-export const Greed = {
-  None: 0,
-  Lo: 1,
-  Hi: 2,
-} as const;
-
 export type Position = {
   readonly x: number;
   readonly y: number;
@@ -20,10 +6,12 @@ export type Position = {
 export type Agent = {
   readonly id: string;
   readonly pos: Position;
-  readonly currHunger: Hunger;
-  readonly baseGreed: Greed;
+  readonly currHunger: number;
+  readonly baseGreed: number;
   readonly foodInventory: number;
   readonly goldInventory: number;
+  readonly isDead?: boolean;
+  readonly diedAtTick?: number;
 };
 
 export type SquareType = 'Dirt' | 'Food' | 'Gold';
@@ -51,7 +39,9 @@ export type WorldState = {
 };
 
 export const GLOBALS = {
-  MAX_FOOD_PER_BLOCK: 10,
-  FOOD_GROWTH_RATE: 1,
+  MAX_FOOD_PER_BLOCK: 5,
+  FOOD_GROWTH_RATE: 0.5,
   FOOD_CONSUMPTION_RATE: 1,
+  HUNGER_ACCUMULATED_PER_TURN: 1,
+  DEATH_AT_HUNGER: 10,
 } as const;

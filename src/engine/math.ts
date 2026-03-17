@@ -11,10 +11,17 @@ export type PreferenceParams = {
  * beta: Weight for gold (scales based on base Greed)
  */
 export const derivePreferenceParams = (agent: Agent): PreferenceParams => {
-  // E.g. A hyper-hungry agent sees a massive spike in alpha, overriding beta.
-  const alpha = Math.pow(10, agent.currHunger); // Hunger.Hi (2) -> 100, Lo (1) -> 10, None (0) -> 1
-  const beta = Math.pow(10, agent.baseGreed) * 0.5; // Scaled so Hunger prevents starvation
-  return { alpha, beta };
+  // We use base 2 for exponential scaling so strong hunger outweighs greed.
+  // We then normalize alpha and beta so alpha + beta = 1.
+  // This keeps the Cobb-Douglas utility values sane while preserving the MRS ratio.
+  const rawAlpha = Math.pow(2, agent.currHunger); 
+  const rawBeta = Math.pow(2, agent.baseGreed) * 0.5;
+  
+  const sum = rawAlpha + rawBeta;
+  return { 
+    alpha: rawAlpha / sum, 
+    beta: rawBeta / sum 
+  };
 };
 
 /**
@@ -27,6 +34,26 @@ export const calculateMRS = (agent: Agent): number => {
   const { foodInventory: f, goldInventory: g } = agent;
   
   return (alpha / beta) * ((g + 1) / (f + 1));
+};
+
+/**
+ * Partial derivative of U with respect to Food
+ * MU_F = alpha * (F + 1)^(alpha - 1) * (G + 1)^beta
+ */
+export const calculateMU_Food = (agent: Agent): number => {
+  const { alpha, beta } = derivePreferenceParams(agent);
+  const { foodInventory: f, goldInventory: g } = agent;
+  return alpha * Math.pow(f + 1, alpha - 1) * Math.pow(g + 1, beta);
+};
+
+/**
+ * Partial derivative of U with respect to Gold
+ * MU_G = beta * (F + 1)^alpha * (G + 1)^(beta - 1)
+ */
+export const calculateMU_Gold = (agent: Agent): number => {
+  const { alpha, beta } = derivePreferenceParams(agent);
+  const { foodInventory: f, goldInventory: g } = agent;
+  return beta * Math.pow(f + 1, alpha) * Math.pow(g + 1, beta - 1);
 };
 
 /**

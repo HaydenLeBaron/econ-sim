@@ -1,4 +1,4 @@
-import { Hunger, GLOBALS, type WorldState, type Agent, type Position } from './types';
+import { GLOBALS, type WorldState, type Agent, type Position } from './types';
 import { calculateUtility, derivePreferenceParams } from './math';
 
 /**
@@ -39,7 +39,11 @@ type ActionResolution = {
  * Calculates expected utility of actions based on preference parameters.
  */
 export const resolveAgentAction = (agent: Agent, grid: WorldState['grid']): ActionResolution => {
-  const sq = grid[agent.pos.y][agent.pos.x];
+  const sq = grid[agent.pos.y] && grid[agent.pos.y][agent.pos.x]; // Safe navigation just in case
+  if (!sq) {
+    // Should never happen, but returning dummy to satisfy compiler
+    return { agent, foodDelta: 0, goldDelta: 0 };
+  }
   const params = derivePreferenceParams(agent);
   
   const currentUtility = calculateUtility(agent.foodInventory, agent.goldInventory, params);
@@ -55,16 +59,27 @@ export const resolveAgentAction = (agent: Agent, grid: WorldState['grid']): Acti
   
   const exploitUtility = calculateUtility(agent.foodInventory + dF, agent.goldInventory + dG, params);
   
-  if (exploitUtility > currentUtility) {
+  // Calculate expected utility of exploring.
+  // We approximate this by assuming there's a chance to find Gold or Food if they move.
+  // In a real model, this would be computed over the adjacent squares' actual contents,
+  // but for greed/hunger to work broadly, we can assign a baseline expected delta.
+  const expectedExploreDeltas = { dF: 0.5, dG: 0.1 }; // small expected find
+  const exploreUtility = calculateUtility(agent.foodInventory + expectedExploreDeltas.dF, agent.goldInventory + expectedExploreDeltas.dG, params);
+  
+  // They only exploit if the *marginal* bump from exploiting exceeds the *marginal* bump from exploring
+  const exploitMarginal = exploitUtility - currentUtility;
+  const exploreMarginal = exploreUtility - currentUtility;
+  
+  if (exploitMarginal > exploreMarginal && exploitMarginal > 0) {
     // EXPLOIT
     let newHunger = agent.currHunger;
     let storedFood = agent.foodInventory + dF;
     
     // Satisfy hunger if we got food
     if (dF > 0) {
-      while (newHunger > Hunger.None && storedFood >= GLOBALS.FOOD_CONSUMPTION_RATE) {
+      while (newHunger > 0 && storedFood >= GLOBALS.FOOD_CONSUMPTION_RATE) {
         storedFood -= GLOBALS.FOOD_CONSUMPTION_RATE;
-        newHunger = (newHunger - 1) as Hunger;
+        newHunger = Math.max(0, newHunger - GLOBALS.FOOD_CONSUMPTION_RATE);
       }
     }
 
@@ -76,36 +91,17 @@ export const resolveAgentAction = (agent: Agent, grid: WorldState['grid']): Acti
         goldInventory: agent.goldInventory + dG
       },
       foodDelta: -dF,
-      goldDelta: 0 // Gold deposits are constant per PRD, so we don't reduce the square's resources
+      goldDelta: -dG // Deplete the resource!
     };
   } else {
     // EXPLORE
     const adjs = getAdjacentPositions(agent.pos, grid[0].length, grid.length);
     const randomAdj = adjs[Math.floor(Math.random() * adjs.length)];
-    
-    let nextHunger = agent.currHunger;
-    let nextFoodInv = agent.foodInventory;
-
-    // Small chance to become hungrier each tick randomly, forcing them to find food
-    if (Math.random() < 0.05) {
-      if (nextHunger === Hunger.None) nextHunger = Hunger.Lo;
-      else if (nextHunger === Hunger.Lo) nextHunger = Hunger.Hi;
-    }
-    
-    // Auto-eat food from inventory if hungry
-    if (nextHunger > Hunger.None && nextFoodInv > 0) {
-      while (nextHunger > Hunger.None && nextFoodInv >= GLOBALS.FOOD_CONSUMPTION_RATE) {
-        nextFoodInv -= GLOBALS.FOOD_CONSUMPTION_RATE;
-        nextHunger = (nextHunger - 1) as Hunger;
-      }
-    }
 
     return {
       agent: {
         ...agent,
         pos: randomAdj,
-        currHunger: nextHunger,
-        foodInventory: nextFoodInv,
       },
       foodDelta: 0,
       goldDelta: 0
@@ -122,6 +118,8 @@ export const tick = (prevState: WorldState): WorldState => {
   
   // Then Agents take turns
   const nextAgents = prevState.agents.map(agent => {
+    // Dead agents take no action
+    if (agent.isDead) return agent;
     // Because this resolves independently against the PREVIOUS state grid,
     // agents might magically harvest the same food in one turn if they share a tile.
     // For a simple model, we'll allow it (or we would reduce them sequentially, but PRD implies map).
@@ -133,10 +131,35 @@ export const tick = (prevState: WorldState): WorldState => {
       nextGrid[resolution.agent.pos.y][resolution.agent.pos.x] = {
         ...sq,
         foodResources: Math.max(0, sq.foodResources + resolution.foodDelta),
+        goldResources: Math.max(0, sq.goldResources + resolution.goldDelta),
       };
     }
     
-    return resolution.agent;
+    // Apply per-tick rule: Consume 1 food OR increment hunger
+    let finalFood = resolution.agent.foodInventory;
+    let finalHunger = resolution.agent.currHunger;
+    
+    if (finalFood >= GLOBALS.FOOD_CONSUMPTION_RATE) {
+      finalFood -= GLOBALS.FOOD_CONSUMPTION_RATE;
+      // Depending on rules, eating food might decrease hunger too? User said: consume 1 food OR increment hunger.
+      // So if they have food, they consume it and hunger doesn't go up. (If they want it to go down, we do that here).
+      // If we keep our rule that eating food lowers hunger:
+      finalHunger = Math.max(0, finalHunger - 1);
+    } else {
+      // No food to eat!
+      finalHunger += GLOBALS.HUNGER_ACCUMULATED_PER_TURN;
+    }
+    
+    // Check death
+    const shouldDie = finalHunger >= GLOBALS.DEATH_AT_HUNGER;
+    
+    return {
+      ...resolution.agent,
+      foodInventory: finalFood,
+      currHunger: finalHunger,
+      isDead: shouldDie,
+      diedAtTick: shouldDie ? prevState.tick + 1 : undefined,
+    };
   });
   
   return {
