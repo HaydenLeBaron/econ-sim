@@ -1,0 +1,13 @@
+# Dependencies
+/deps/
+/_build/
+
+# Static artifacts (keep assets/ since we serve JS directly)
+# /priv/static/assets/
+
+# Generated on crash
+erl_crash.dump
+
+# Mix artifacts
+*.ez
+.elixir_ls/
