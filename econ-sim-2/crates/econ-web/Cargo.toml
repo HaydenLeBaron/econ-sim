@@ -1,0 +1,19 @@
+[package]
+name = "econ-web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+econ-shared = { path = "../econ-shared" }
+econ-engine = { path = "../econ-engine" }
+leptos = { version = "0.6", features = ["csr"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+gloo-net = { version = "0.5", features = ["websocket"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["HtmlInputElement", "HtmlSelectElement"] }
+js-sys = "0.3"
+futures = "0.3"
+console_error_panic_hook = "0.1"
+wasm-bindgen-futures = "0.4"

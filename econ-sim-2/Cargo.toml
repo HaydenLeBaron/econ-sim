@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "crates/econ-engine",
+    "crates/econ-shared",
+    "crates/econ-server",
+    "crates/econ-web",
+]
+resolver = "2"
